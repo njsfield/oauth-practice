@@ -3,6 +3,15 @@ const Inert = require('inert');
 const QueryString = require('querystring');
 const env = require('env2')('./config.env');
 const request = require('request');
+const cookie = require('hapi-auth-cookie');
+
+const options = {
+  password: 'anythinganythinganythinganythinganythinganythinganythinganythinganythinganythinganything',
+  cookie: 'somecookie',
+  ttl: 24 * 60 * 60 * 1000,
+  isSecure: false,
+  isHttpOnly: false
+}
 
 const server = new Hapi.Server();
 
@@ -11,8 +20,10 @@ server.connection({
   host: 'localhost'
 })
 
-server.register(Inert, (err) => {
+server.register([Inert, cookie], (err) => {
   if (err) throw err;
+
+  server.auth.strategy('base', 'cookie', options);
 
   server.route([{
     path: '/',
@@ -39,7 +50,38 @@ server.register(Inert, (err) => {
         client_secret: process.env.CLIENT_SECRET,
         code: req.query.code
       }
-      request.post('https://github.com/login/oauth/access_token', form: post, function(err,httpResponse,body){ /* ... */ })
+      request.post({url: 'https://github.com/login/oauth/access_token', form: post},
+       (err, httpResponse, body) => {
+         const token = QueryString.parse(body).access_token;
+         req.cookieAuth.set({access_token: token});
+          rep.redirect('/anything');
+      })
+    }
+  },
+  {
+    path: '/anything',
+    method: 'GET',
+    config: {
+      auth: {
+        mode: 'try',
+        strategy: 'base'
+      }
+    },
+    handler: (req, rep) => {
+      if(req.auth.isAuthenticated) {
+        request.get({
+          url: 'https://api.github.com/user',
+          headers: {
+            'User-Agent': 'Test Oauth',
+            Authorization: `token ${req.auth.credentials.access_token}`
+          }
+        }, (err, httpResponse, body) => {
+            if (err) console.log(err);
+            rep(`Hello ${body.login}, you live in ${body.location}`);
+          }
+
+        )
+      }
     }
   }
 ])
