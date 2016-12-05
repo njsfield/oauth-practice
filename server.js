@@ -36,7 +36,7 @@ server.register([Inert, cookie], (err) => {
     path: '/login',
     method: 'GET',
     handler: (req, rep) => {
-      const baseURL = 'https://github.com/login/oauth/authorize';
+      const baseURL = 'https://facebook.com/v2.8/dialog/oauth';
       const queries = QueryString.stringify({client_id: process.env.CLIENT_ID, redirect_uri: 'http://localhost:8080/welcome'});
       rep.redirect(`${baseURL}?${queries}`);
     }
@@ -45,15 +45,14 @@ server.register([Inert, cookie], (err) => {
     path: '/welcome',
     method: 'GET',
     handler: (req, rep) => {
-      const post = {
-        client_id: process.env.CLIENT_ID,
-        client_secret: process.env.CLIENT_SECRET,
-        code: req.query.code
-      };
-      request.post({url: 'https://github.com/login/oauth/access_token', form: post},
+      const cI = process.env.CLIENT_ID;
+      const cS = process.env.CLIENT_SECRET;
+      const rd = 'http://localhost:8080/welcome';
+      const code = req.query.code;
+      request.get(`https://graph.facebook.com/v2.8/oauth/access_token?client_id=${cI}&redirect_uri=${rd}&client_secret=${cS}&code=${code}`,
        (err, httpResponse, body) => {
          if (err) throw err;
-         const token = QueryString.parse(body).access_token;
+         const token = JSON.parse(body).access_token;
          req.cookieAuth.set({access_token: token});
          rep.redirect('/anything');
        });
@@ -70,21 +69,11 @@ server.register([Inert, cookie], (err) => {
     },
     handler: (req, rep) => {
       if (req.auth.isAuthenticated) {
-        request.get({
-          url: 'https://api.github.com/user',
-          headers: {
-            'User-Agent': 'Test Oauth',
-            Authorization: `token ${req.auth.credentials.access_token}`
-          }
-        }, (err, httpResponse, body) => {
-          if (err) console.log(err);
-          const parsed = JSON.parse(body);
-          rep(`Hello ${parsed.name}, you live in ${(parsed.location || 'somewhere')},
-            <img src='${parsed.avatar_url}'/>
-            `);
-        }
-
-        );
+        request.get(`https://graph.facebook.com/me?access_token=${req.auth.credentials.access_token}`,
+          (err, httpResponse, body) => {
+            if (err) throw err;
+            rep(`Welcome ${JSON.parse(body).name}!`);
+          });
       }
     }
   }
