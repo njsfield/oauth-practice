@@ -77,7 +77,11 @@ server.register([Inert, cookie], (err) => {
           }
         }, (err, httpResponse, body) => {
             if (err) console.log(err);
-            rep(`Hello ${body.login}, you live in ${body.location}`);
+            const parsed = JSON.parse(body)
+            console.log(parsed)
+            rep(`Hello ${parsed.name}, you live in ${(parsed.location || 'somewhere')},
+            <img src='${parsed.avatar_url}'/>
+            `);
           }
 
         )
